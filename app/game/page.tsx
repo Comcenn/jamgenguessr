@@ -2,7 +2,8 @@
 
 import SelectBlock from "@/components/form/select";
 import Image from "next/image";
-import { useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { useEffect, useReducer, useState } from "react";
 import { BarLoader } from "react-spinners";
 
 // Requires logic for changing role!
@@ -28,53 +29,186 @@ type ImageResult = {
   image_url?: string;
 };
 
+enum Role {
+  CONTROLLER = "CONTROLLER",
+  GUESSER = "GUESSER"
+};
+
+interface IGameData{
+  playerId: string
+  score: number
+  role: "CONTROLLER" | "GUESSER" | null
+  round: number
+  imageUrl: string
+};
+
+type Action =
+  | {type: "CONFIG", nextScore: number, roundNumber: number, controllerId: string, imageUrl: string, target: string}
+  | {type: "GUESS"}
+  | {type: "GENERATED", imageUrl: string}
+  | {type: "NEW_ROUND", controllerId: string, nextScore: number, roundNumber: number}
+  | {type: "UPDATE_PLAYER", playerId: string}
+
+function reducer(state: IGameData, action: Action): IGameData{
+  switch (action.type) {
+    case "CONFIG": {
+      if (action.target === state.playerId){
+        return {
+          ...state,
+          score: action.nextScore,
+          round: action.roundNumber,
+          role: action.controllerId === state.playerId ? "CONTROLLER" : "GUESSER",
+          imageUrl: action.imageUrl
+        };
+      }
+      return {...state};
+    }
+    case "GENERATED": {
+      return {
+        ...state,
+        imageUrl: action.imageUrl
+      };
+    }
+    case "NEW_ROUND": {
+      return {
+        ...state,
+        role: action.controllerId === state.playerId ? "CONTROLLER" : "GUESSER",
+        imageUrl: "",
+
+      };
+    }
+    case "UPDATE_PLAYER": {
+      return {
+        ...state,
+        playerId: action.playerId
+      }
+    }
+    default: {
+      return {
+        ...state
+      };
+    }
+  }
+};
+
 export default function Game() {
+  const searchParams = useSearchParams();
+  const gameId = searchParams.get("id");
+
+  const [state, dispatch] = useReducer(reducer, {
+        playerId: "",
+        score: 0,
+        role: null,
+        round: 0,
+        imageUrl: ""
+  });
+
+  const [ws, setWs] = useState<WebSocket | null>();
+
+  const [isConnected, setIsConnected] = useState(false);
+
   const [subject, setSubject] = useState<string>("duck");
   const [location, setLocation] = useState<string>("the sky");
   const [imageResult, setImageResult] = useState<ImageResult | null>();
   const [error, setError] = useState<string | null>();
 
+  useEffect(() => {
+    // Check in local storage for playerId
+    let playerId = localStorage.getItem("playerId");
+
+    if (!playerId) {
+      console.log("No player ID generating....");
+      playerId = Math.random().toString(20).substring(2, 10);
+      console.log(`Player ID: ${playerId}`);
+      localStorage.setItem("playerId", playerId);
+    }
+
+    dispatch({type: "UPDATE_PLAYER", playerId: playerId});
+
+    const socket = new WebSocket("".concat(process.env.NEXT_PUBLIC_API_WS_URL!, gameId!, "/", playerId));
+
+    socket.onopen = () => {
+      console.log("Connected...");
+      setIsConnected(true);
+    };
+
+    socket.onclose = () => {
+      console.log(`Disconnected from game ${gameId}`)
+      setIsConnected(false);
+    };
+
+    socket.onerror = (error) => {
+      console.log(error);
+    };
+
+    socket.onmessage = (event) => {
+      console.log(`Message: ${event.data}`);
+      const message = JSON.parse(event.data);
+      dispatch(message)
+    };
+
+    setWs(socket);
+
+    return () => {
+      console.log("Closing Connection....");
+      socket.close();
+    };
+  }, [setWs, dispatch]);
+
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    setImageResult({ id: "", status: "waiting" });
+    if (state.role === Role.CONTROLLER) {
 
-    const response = await fetch("/api/images/generate", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        prompt: `A photo of a ${subject} in ${location}`,
-      }),
-    });
+      setImageResult({ id: "", status: "waiting" });
 
-    let result = await response.json();
+      const response = await fetch("/api/images/generate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          prompt: `A photo of a ${subject} in ${location}`,
+        }),
+      });
 
-    if (response.status !== 200) {
-      setError(`An error occurred.`);
-      return;
-    }
+      let result = await response.json();
 
-    setImageResult(result);
-
-    while (result.status !== "completed" && result.status !== "failed") {
-      await sleep(6000);
-      const response = await fetch("/api/images/result/" + result.id);
-      result = await response.json();
       if (response.status !== 200) {
         setError(`An error occurred.`);
         return;
       }
+
       setImageResult(result);
+
+      while (result.status !== "completed" && result.status !== "failed") {
+        await sleep(6000);
+        const response = await fetch("/api/images/result/" + result.id);
+        result = await response.json();
+        if (response.status !== 200) {
+          setError(`An error occurred.`);
+          return;
+        }
+        console.log(result.image_url)
+        if (result.image_url){
+
+          ws?.send(JSON.stringify({imageUrl: result.image_url, prompt: `A photo of a ${subject} in ${location}`, type:"GENERATED", playerId: state.playerId, game_id: gameId}));
+        }
+        setImageResult(result);
+      }
+    } else {
+      ws?.send(JSON.stringify({prompt: `A photo of a ${subject} in ${location}`, type: "GUESS", playerId: state.playerId, game_id: gameId}))
     }
   };
+
+  const image = state.role === Role.CONTROLLER && imageResult?.image_url ? imageResult.image_url : state.imageUrl
 
   return (
     <div className="grid grid-cols-1 m-auto">
       <div className="flex flex-none h-fit mx-auto text-sm uppercase gap-4 p-8">
         <div className="my-auto">You are the</div>
-        <div className="border border-white rounded py-2 px-4">{role}</div>
+        <div className="border border-white rounded py-2 px-4">{state.role}</div>
       </div>
       {error && (
         <div className="flex flex-none h-fit mx-auto uppercase">
@@ -83,12 +217,12 @@ export default function Game() {
       )}
       <div className="flex flex-1">
         <div className="flex mx-auto border border-white rounded border-opacity-50 aspect-square w-[80vw] max-w-[50vh]">
-          {imageResult && (
+          {image && (
             <>
-              {imageResult.image_url ? (
+              {image ? (
                 <div className="relative w-full">
                   <Image
-                    src={imageResult.image_url}
+                    src={image}
                     alt="Generated image"
                     priority
                     fill
@@ -97,7 +231,7 @@ export default function Game() {
               ) : (
                 <div className="flex flex-col m-auto text-gray-400 p-4 gap-1">
                   <div className="mx-auto">
-                    {imageResult.status.toUpperCase()}
+                    {imageResult?.status.toUpperCase()}
                   </div>
                   <div>
                     <BarLoader color={"#ffffff"} loading={true} />
@@ -107,7 +241,7 @@ export default function Game() {
             </>
           )}
 
-          {!imageResult && (
+          {!image && (
             <div className="m-auto text-gray-400 p-4 text-center">
               Choose your prompt and generate!
             </div>
@@ -144,10 +278,13 @@ export default function Game() {
                 imageResult.status == "waiting")
             }
           >
-            Generate
+            {state.role === Role.CONTROLLER ? "Generate": "Guess"}
           </button>
         </div>
       </form>
+      <div>
+        {}
+      </div>
     </div>
   );
 }

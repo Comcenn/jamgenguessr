@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 
 interface FormElements extends HTMLFormControlsCollection {
   gameId: HTMLInputElement;
@@ -13,6 +14,11 @@ interface GameIDElements extends HTMLFormElement {
 
 export default function Home() {
   const router = useRouter();
+
+  // remove player ID
+  useEffect(() => {
+    localStorage.removeItem("playerId");
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent<GameIDElements>) => {
     e.preventDefault();
