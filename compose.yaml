@@ -4,3 +4,13 @@ services:
     ports: 
       - "6379:6379"
   
+  mock_stablehorde:
+    image: mock_stablehorde
+    build:
+      dockerfile: ./mocks/stablehorde/dockerfile
+    env_file:
+      - .env.local
+    ports:
+      - "5000:5000"
+
+  

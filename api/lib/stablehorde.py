@@ -2,8 +2,8 @@ import random
 
 import requests
 
-ANON_API_KEY = "0000000000"
-STABLE_HORDE_URL = "https://stablehorde.net/api/v2"
+from api.config import settings
+
 
 DEFAULT_GENERATION_PAYLOAD = {
     "params": {
@@ -27,7 +27,7 @@ DEFAULT_GENERATION_PAYLOAD = {
     "disable_batching": False,
 }
 
-headers = {"apikey": ANON_API_KEY, "Client-Agent": "unknown:0:unknown"}
+headers = {"apikey": settings.ANON_API_KEY, "Client-Agent": "unknown:0:unknown"}
 
 
 async def generate_async(prompt: str) -> str:
@@ -35,7 +35,7 @@ async def generate_async(prompt: str) -> str:
     payload["prompt"] = prompt
 
     r = requests.post(
-        f"{STABLE_HORDE_URL}/generate/async", json=payload, headers=headers
+        f"{settings.STABLE_HORDE_URL}generate/async", json=payload, headers=headers
     )
     data = r.json()
 
@@ -43,7 +43,7 @@ async def generate_async(prompt: str) -> str:
 
 
 async def generate_status(id: str):
-    r = requests.get(f"{STABLE_HORDE_URL}/generate/status/{id}", headers=headers)
+    r = requests.get(f"{settings.STABLE_HORDE_URL}generate/status/{id}", headers=headers)
     data = r.json()
 
     return data

@@ -6,8 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { useEffect, useReducer, useState } from "react";
 import { BarLoader } from "react-spinners";
 
-// Requires logic for changing role!
-const role = "controller";
+
 const subjectOptions = [
   { title: "duck", value: "duck" },
   { title: "dog", value: "dog" },
@@ -158,6 +157,7 @@ export default function Game() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log("Submitting");
 
     if (state.role === Role.CONTROLLER) {
 
@@ -198,6 +198,7 @@ export default function Game() {
         setImageResult(result);
       }
     } else {
+      console.log("Guessing")
       ws?.send(JSON.stringify({prompt: `A photo of a ${subject} in ${location}`, type: "GUESS", playerId: state.playerId, game_id: gameId}))
     }
   };

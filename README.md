@@ -25,7 +25,9 @@ Also you can can run:
 docker compose up -d
 ```
 
-To spin up the Redis instance the Api requires.
+To spin up the Redis instance the Api requires and the Mock Stablehoard API. You will need to have a `.env.local`
+environment file with the `MOCK_IMAGE_URL` var set to the full path of an image file you would like to use. Also
+remember to set the `API_STABLE_HORDE_URL` to `localhost:5000` to enable the API to use the Stablehorde mock.
 
 To install the required dependencies:
 
