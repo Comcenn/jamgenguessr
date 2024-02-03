@@ -22,6 +22,8 @@ const locationOptions = [
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+type Status = "completed" | "error" | "waiting" | "processing" | "idle";
+
 type ImageResult = {
   id: string;
   status: "completed" | "error" | "waiting" | "processing";
@@ -39,6 +41,8 @@ interface IGameData{
   role: "CONTROLLER" | "GUESSER" | null
   round: number
   imageUrl: string
+  imageStatus: Status
+  imageId: string
 };
 
 type Action =
@@ -47,6 +51,7 @@ type Action =
   | {type: "GENERATED", imageUrl: string}
   | {type: "NEW_ROUND", controllerId: string, nextScore: number, roundNumber: number}
   | {type: "UPDATE_PLAYER", playerId: string}
+  | {type: "UPDATE_IMAGE", imageId: string, imageStatus: Status, imageUrl: string}
 
 function reducer(state: IGameData, action: Action): IGameData{
   switch (action.type) {
@@ -65,7 +70,8 @@ function reducer(state: IGameData, action: Action): IGameData{
     case "GENERATED": {
       return {
         ...state,
-        imageUrl: action.imageUrl
+        imageUrl: action.imageUrl,
+        imageStatus: "completed"
       };
     }
     case "NEW_ROUND": {
@@ -73,13 +79,22 @@ function reducer(state: IGameData, action: Action): IGameData{
         ...state,
         role: action.controllerId === state.playerId ? "CONTROLLER" : "GUESSER",
         imageUrl: "",
-
+        imageStatus: "idle",
+        imageId: ""
       };
     }
     case "UPDATE_PLAYER": {
       return {
         ...state,
         playerId: action.playerId
+      }
+    }
+    case "UPDATE_IMAGE": {
+      return {
+        ...state,
+        imageId: action.imageId,
+        imageUrl: action.imageUrl,
+        imageStatus: action.imageStatus
       }
     }
     default: {
@@ -99,16 +114,15 @@ export default function Game() {
         score: 0,
         role: null,
         round: 0,
-        imageUrl: ""
+        imageUrl: "",
+        imageStatus: "waiting",
+        imageId: ""
   });
 
   const [ws, setWs] = useState<WebSocket | null>();
 
-  const [isConnected, setIsConnected] = useState(false);
-
   const [subject, setSubject] = useState<string>("duck");
   const [location, setLocation] = useState<string>("the sky");
-  const [imageResult, setImageResult] = useState<ImageResult | null>();
   const [error, setError] = useState<string | null>();
 
   useEffect(() => {
@@ -128,12 +142,10 @@ export default function Game() {
 
     socket.onopen = () => {
       console.log("Connected...");
-      setIsConnected(true);
     };
 
     socket.onclose = () => {
       console.log(`Disconnected from game ${gameId}`)
-      setIsConnected(false);
     };
 
     socket.onerror = (error) => {
@@ -161,7 +173,7 @@ export default function Game() {
 
     if (state.role === Role.CONTROLLER) {
 
-      setImageResult({ id: "", status: "waiting" });
+      dispatch({type: "UPDATE_IMAGE", imageId: "", imageStatus: "waiting", imageUrl: ""});
 
       const response = await fetch("/api/images/generate", {
         method: "POST",
@@ -180,7 +192,7 @@ export default function Game() {
         return;
       }
 
-      setImageResult(result);
+      dispatch({type: "UPDATE_IMAGE", imageId: result.id, imageStatus: result.status, imageUrl: result?.image_url ? result.image_url : ""});
 
       while (result.status !== "completed" && result.status !== "failed") {
         await sleep(6000);
@@ -195,21 +207,23 @@ export default function Game() {
 
           ws?.send(JSON.stringify({imageUrl: result.image_url, prompt: `A photo of a ${subject} in ${location}`, type:"GENERATED", playerId: state.playerId, game_id: gameId}));
         }
-        setImageResult(result);
+        dispatch({type: "UPDATE_IMAGE", imageId: result.id, imageStatus: result.status, imageUrl: result?.image_url ? result.image_url : ""});
       }
     } else {
-      console.log("Guessing")
-      ws?.send(JSON.stringify({prompt: `A photo of a ${subject} in ${location}`, type: "GUESS", playerId: state.playerId, game_id: gameId}))
+      console.log("Guessing");
+      if (ws){
+        ws.send(JSON.stringify({prompt: `A photo of a ${subject} in ${location}`, type: "GUESS", playerId: state.playerId, game_id: gameId}));
+      }
+
     }
   };
 
-  const image = state.role === Role.CONTROLLER && imageResult?.image_url ? imageResult.image_url : state.imageUrl
 
   return (
     <div className="grid grid-cols-1 m-auto">
       <div className="flex flex-none h-fit mx-auto text-sm uppercase gap-4 p-8">
         <div className="my-auto">You are the</div>
-        <div className="border border-white rounded py-2 px-4">{state.role}</div>
+        <div className="border border-white rounded py-2 px-4">{state.role ? state.role : "Loading..."}</div>
       </div>
       {error && (
         <div className="flex flex-none h-fit mx-auto uppercase">
@@ -218,12 +232,12 @@ export default function Game() {
       )}
       <div className="flex flex-1">
         <div className="flex mx-auto border border-white rounded border-opacity-50 aspect-square w-[80vw] max-w-[50vh]">
-          {image && (
+          {state.imageUrl && (
             <>
-              {image ? (
+              {state.imageUrl ? (
                 <div className="relative w-full">
                   <Image
-                    src={image}
+                    src={state.imageUrl}
                     alt="Generated image"
                     priority
                     fill
@@ -232,7 +246,7 @@ export default function Game() {
               ) : (
                 <div className="flex flex-col m-auto text-gray-400 p-4 gap-1">
                   <div className="mx-auto">
-                    {imageResult?.status.toUpperCase()}
+                    {state.imageStatus.toUpperCase()}
                   </div>
                   <div>
                     <BarLoader color={"#ffffff"} loading={true} />
@@ -242,9 +256,9 @@ export default function Game() {
             </>
           )}
 
-          {!image && (
+          {!state.imageUrl && (
             <div className="m-auto text-gray-400 p-4 text-center">
-              Choose your prompt and generate!
+              { state.role === Role.CONTROLLER ? "Choose your prompt and generate!" : "Select the prompt and guess!"}
             </div>
           )}
         </div>
@@ -274,9 +288,11 @@ export default function Game() {
             className="bg-white border border-white text-black h-full px-6 text-sm rounded hover:bg-opacity-0 hover:text-white disabled:opacity-10 disabled:hover:bg-white disabled:hover:text-black"
             type="submit"
             disabled={
-              imageResult != null &&
-              (imageResult.status == "processing" ||
-                imageResult.status == "waiting")
+              (state.imageUrl !== "" && 
+              state.role === Role.CONTROLLER &&
+              (state.imageStatus == "processing" ||
+                state.imageStatus == "waiting")) ||
+                !state.imageUrl && state.role === Role.GUESSER
             }
           >
             {state.role === Role.CONTROLLER ? "Generate": "Guess"}

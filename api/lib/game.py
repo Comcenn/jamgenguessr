@@ -79,10 +79,12 @@ class Game:
                 }
     
     async def update_game(self, message: Dict[str, any] ) -> None:
-        LOGGER.info(f"Update_game")
+        LOGGER.info(f"Update_game: {message}")
+        LOGGER.info(f"Guesses: {self.guesses}, Players: {self.players}, Players minus Controller: {set(player for player in self.players.keys() if player != self.controller)}")
         data = loads(message["data"].decode("utf-8"))
+        player_id = data["playerId"]
         msg = None
-        if (msg_type := data["type"]) == MessageTypes.JOINED and (player_id := data["playerId"]) not in self.players:
+        if (msg_type := data["type"]) == MessageTypes.JOINED and player_id not in self.players:
             self.players[player_id] = Player(id=player_id)
         elif msg_type == MessageTypes.GENERATED:
             self.image_url = data["imageUrl"]
@@ -94,7 +96,7 @@ class Game:
         elif msg_type == MessageTypes.GUESS:
             if player_id not in self.guesses:
                 self.guesses.add(player_id)
-                if data["guess"] == self.prompt:
+                if data["prompt"] == self.prompt:
                     self.players[player_id].score += 1
                     msg = self.finish_round(player_id)
 
