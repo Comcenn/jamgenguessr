@@ -67,12 +67,12 @@ class Game:
         self.prompt = ""
         self.image_url = ""
         self.guesses = set()
-        new_controller = choice([player.id for player in self.players.values() ])
+        self.controller = choice([player.id for player in self.players.values()])
         return {
                 "type": MessageTypes.NEW_ROUND,
                 "playerId": "MNGR",
                 "gameId": self.id,
-                "controllerId": new_controller,
+                "controllerId": self.controller,
                 "roundNumber": self.round,
                 "nextScore": self.players[player_id].score
                 # "scores": [{player.id: player.score} for player in self.players.values()]
@@ -91,17 +91,18 @@ class Game:
             self.prompt = data["prompt"]
         elif len(self.players) < 2:
             return
-        elif self.guesses == set(player for player in self.players.keys() if player != self.controller):
-            msg = self.finish_round(player_id)
         elif msg_type == MessageTypes.GUESS:
             if player_id not in self.guesses:
                 self.guesses.add(player_id)
                 if data["prompt"] == self.prompt:
                     self.players[player_id].score += 1
                     msg = self.finish_round(player_id)
-
+                
         if msg:    
             await self.mngr.broadcast_to_game(self.id, dumps(msg))
+        
+        if self.guesses == set(player for player in self.players.keys() if player != self.controller):
+            msg = self.finish_round(player_id)
         
     
     @property

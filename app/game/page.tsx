@@ -78,6 +78,7 @@ function reducer(state: IGameData, action: Action): IGameData{
       return {
         ...state,
         role: action.controllerId === state.playerId ? "CONTROLLER" : "GUESSER",
+        round: action.roundNumber,
         imageUrl: "",
         imageStatus: "idle",
         imageId: ""
@@ -224,6 +225,10 @@ export default function Game() {
       <div className="flex flex-none h-fit mx-auto text-sm uppercase gap-4 p-8">
         <div className="my-auto">You are the</div>
         <div className="border border-white rounded py-2 px-4">{state.role ? state.role : "Loading..."}</div>
+        <div className="my-auto"> Round</div>
+        <div className="border border-white rounded py-2 px-4">{state.round}</div>
+        <div className="my-auto"> Score</div>
+        <div className="border border-white rounded py-2 px-4">{state.score}</div>
       </div>
       {error && (
         <div className="flex flex-none h-fit mx-auto uppercase">
@@ -299,9 +304,6 @@ export default function Game() {
           </button>
         </div>
       </form>
-      <div>
-        {}
-      </div>
     </div>
   );
 }
