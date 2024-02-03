@@ -19,13 +19,13 @@ Create a copy of `.env.example` in the root of the project and rename it to `.en
 
 You will need a Python Virtual Environment that is activated before you run all the **pnpm** commands.
 
-Also you can can run:
+Also you will need to run in the root directory:
 
 ```
 docker compose up -d
 ```
 
-To spin up the Redis instance the Api requires and the Mock Stablehoard API. You will need to have a `.env.local`
+This will spin up the Redis instance the Api requires and the Mock Stablehoard API. You will need to have a `.env.local`
 environment file with the `MOCK_IMAGE_URL` var set to the full path of an image file you would like to use. Also
 remember to set the `API_STABLE_HORDE_URL` to `localhost:5000` to enable the API to use the Stablehorde mock.
 
@@ -49,4 +49,4 @@ To keep things simple for the task, `pnpm dev` starts both the Next application 
 
 
 ## To Note
-Not finished there is some functionality... just needs more development, but hpefully you can see what I was aiming for.....
+Happy path implemented... scoring and round counting as well as round ending but games don't end.... this should scale so you should be able to spin up multiple Api instances (thanks to Redis PubSub).... not tested though 
