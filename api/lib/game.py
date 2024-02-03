@@ -74,8 +74,8 @@ class Game:
                 "gameId": self.id,
                 "controllerId": self.controller,
                 "roundNumber": self.round,
-                "nextScore": self.players[player_id].score
-                # "scores": [{player.id: player.score} for player in self.players.values()]
+                "nextScore": self.players[player_id].score,
+                "scores": [{"playerId": player.id, "playerScore": player.score} for player in self.players.values()]
                 }
     
     async def update_game(self, message: Dict[str, any] ) -> None:
@@ -101,8 +101,9 @@ class Game:
         if msg:    
             await self.mngr.broadcast_to_game(self.id, dumps(msg))
         
-        if self.guesses == set(player for player in self.players.keys() if player != self.controller):
+        if len(self.players) >= 2 and self.guesses == set(player for player in self.players.keys() if player != self.controller):
             msg = self.finish_round(player_id)
+            await self.mngr.broadcast_to_game(self.id, dumps(msg))
         
     
     @property

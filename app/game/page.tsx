@@ -45,11 +45,13 @@ interface IGameData{
   imageId: string
 };
 
+type Player = {playerId: string, playerScore: number}
+
 type Action =
   | {type: "CONFIG", nextScore: number, roundNumber: number, controllerId: string, imageUrl: string, target: string}
   | {type: "GUESS"}
   | {type: "GENERATED", imageUrl: string}
-  | {type: "NEW_ROUND", controllerId: string, nextScore: number, roundNumber: number}
+  | {type: "NEW_ROUND", controllerId: string, nextScore: number, roundNumber: number, scores: Array<Player>}
   | {type: "UPDATE_PLAYER", playerId: string}
   | {type: "UPDATE_IMAGE", imageId: string, imageStatus: Status, imageUrl: string}
 
@@ -75,13 +77,21 @@ function reducer(state: IGameData, action: Action): IGameData{
       };
     }
     case "NEW_ROUND": {
+      let newScore = state.score;
+      for (let i = 0; i < action.scores.length; i++){
+        const player = action.scores[i];
+        if (state.playerId === player.playerId) {
+          newScore = player.playerScore;
+        };
+      };
       return {
         ...state,
         role: action.controllerId === state.playerId ? "CONTROLLER" : "GUESSER",
         round: action.roundNumber,
         imageUrl: "",
         imageStatus: "idle",
-        imageId: ""
+        imageId: "",
+        score: newScore
       };
     }
     case "UPDATE_PLAYER": {
